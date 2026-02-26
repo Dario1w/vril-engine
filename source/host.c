@@ -845,8 +845,6 @@ Host_Init
 ====================
 */
 #include "cl_slist.h"
-
-void M_Start_Menu_f (void);
 void Host_Init (quakeparms_t *parms)
 {
 
@@ -873,7 +871,6 @@ void Host_Init (quakeparms_t *parms)
 	Host_InitLocal ();
 	Key_Init ();
 	Con_Init ();
-	M_Init ();
 	PR_Init ();
 	Mod_Init ();
 	NET_Init ();
@@ -899,9 +896,13 @@ void Host_Init (quakeparms_t *parms)
 		Draw_Init ();
 		SCR_Init ();
 		R_Init ();
+		HUD_Init ();
+		// Moved to after VID_Init to get screen width/height
+		// in order to set menu scaling
+		// and after HUD_Init to get button pics
+		Menu_Init ();
 		S_Init ();
 		CDAudio_Init ();
-		HUD_Init ();
 		CL_Init ();
 		IN_Init ();
 	}
@@ -915,7 +916,7 @@ void Host_Init (quakeparms_t *parms)
 #ifdef __WII__
 	VIDEO_SetBlack(false);
 #endif
-	M_Start_Menu_f();
+	Menu_Main_Set();
 	Sys_Printf ("========Nazi Zombies Portable Initialized=========\n");	
 }
 

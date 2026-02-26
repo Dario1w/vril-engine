@@ -62,19 +62,32 @@ static GLuint current_gl_id = 0;
 void GL_Bind (int texnum)
 {
 	if (texnum < 0) {
-        Con_DPrintf("GL_Bind: tried to bind an invalid texnum\n");
-        return;
-    }
-    gltexture_t *glt = &gltextures[texnum];
-    if (!glt->used) {
-        Sys_Error("GL_Bind: Tried to bind unused texture %d\n", texnum);
-        return;
-    }
+		return;
+	}
 
-    if (current_gl_id != glt->gl_id) {
-        glBindTexture(GL_TEXTURE_2D, glt->gl_id);
-        current_gl_id = glt->gl_id;
-    }
+	gltexture_t *glt = &gltextures[texnum];
+	if (!glt->used || (glt->gl_id < 0)) {
+		Sys_Error("GL_Bind: Tried to bind unused texture %d\n", texnum);
+		return;
+	}
+
+	if (current_gl_id != glt->gl_id) {
+		glBindTexture(GL_TEXTURE_2D, glt->gl_id);
+		current_gl_id = glt->gl_id;
+
+		if (r_retro.value) {
+			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		} else {
+			if (texnum == char_texture) {
+				glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			} else {
+				glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			}
+		}
+	}
 }
 
 void GL_FreeTextures (int texnum)
@@ -82,13 +95,14 @@ void GL_FreeTextures (int texnum)
 	if (texnum < 0) return;
 
 	gltexture_t *glt = &gltextures[texnum];
+	if (glt->gl_id == current_gl_id) return;
 	if (glt->used == false) return;
 	if (glt->keep) return;
 
 	glDeleteTextures(1, &glt->gl_id);
 	glt->gl_id = -1;
 	glt->texnum = -1;
-	strcpy(glt->identifier, "");
+	glt->identifier[0] = '\0';
 	glt->width = 0;
 	glt->height = 0;
 	glt->original_width = 0;
@@ -107,7 +121,6 @@ void GL_UnloadTextures (void)
 		GL_FreeTextures(i);
 	}
 }
-
 //=============================================================================
 /* Support Routines */
 
@@ -448,27 +461,27 @@ Draw_ColoredStretchPic
 */
 void Draw_ColoredStretchPic (int x, int y, int pic, int x_value, int y_value, int r, int g, int b, int a)
 {
-	if (pic < 0) return;
+	if (pic > 0) {
+		glEnable(GL_BLEND);
+		glDisable(GL_ALPHA_TEST);
+		glColor4f(r/255.0,g/255.0,b/255.0,a/255.0);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-	glEnable(GL_BLEND);
-	glDisable(GL_ALPHA_TEST);
-	glColor4f(r/255.0,g/255.0,b/255.0,a/255.0);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	GL_Bind (pic);
-	glBegin (GL_QUADS);
-	glTexCoord2f (0, 0);
-	glVertex2f (x, y);
-	glTexCoord2f (1, 0);
-	glVertex2f (x+x_value, y);
-	glTexCoord2f (1, 1);
-	glVertex2f (x+x_value, y+y_value);
-	glTexCoord2f (0, 1);
-	glVertex2f (x, y+y_value);
-	glEnd ();
-
-	glColor4f(1,1,1,1);
+		GL_Bind (pic);
+		glBegin (GL_QUADS);
+		glTexCoord2f (0, 0);
+		glVertex2f (x, y);
+		glTexCoord2f (1, 0);
+		glVertex2f (x+x_value, y);
+		glTexCoord2f (1, 1);
+		glVertex2f (x+x_value, y+y_value);
+		glTexCoord2f (0, 1);
+		glVertex2f (x, y+y_value);
+		glEnd ();
+		glDisable(GL_ALPHA_TEST);
+		glColor4f(1,1,1,1);
+	}
 }
 
 /*
@@ -478,24 +491,72 @@ Draw_StretchPic
 */
 void Draw_StretchPic (int x, int y, int pic, int x_value, int y_value)
 {
-	if (pic < 0) return;
+	if (pic > 0) {
+		glEnable(GL_ALPHA_TEST);
+		glColor4f(1,1,1,1);
 
-	glEnable(GL_ALPHA_TEST);
-	glColor4f(1,1,1,1);
+		GL_Bind (pic);
+		glBegin (GL_QUADS);
+		glTexCoord2f (0, 0);
+		glVertex2f (x, y);
+		glTexCoord2f (1, 0);
+		glVertex2f (x+x_value, y);
+		glTexCoord2f (1, 1);
+		glVertex2f (x+x_value, y+y_value);
+		glTexCoord2f (0, 1);
+		glVertex2f (x, y+y_value);
+		glEnd ();
+		glDisable(GL_ALPHA_TEST);
+		glColor4f(1,1,1,1);
+	}
+}
+
+/*
+=============
+Draw_MenuPanningPic
+=============
+*/
+void Draw_MenuPanningPic (int x, int y, int pic, int x_value, int y_value, float time)
+{
+	if (pic <= 0)
+        return;
+
+	// 5% horizonstal crop
+    const float zoom = 0.05f;
+    const float visible = 1.0f - (zoom * 2.0f);
+
+    // Pan amount (0 -> 1 over time)
+    float duration = 7.0f;
+	float t = time / duration;
+	if (t > 1.0f) t = 1.0f;
+
+	float offset = t * (zoom * 2.0f);
+
+    float u1 = offset;
+    float u2 = u1 + visible;
+
+    glEnable(GL_ALPHA_TEST);
+    glColor4f(1,1,1,1);
 
 	GL_Bind (pic);
-	glBegin (GL_QUADS);
-	glTexCoord2f (0, 0);
-	glVertex2f (x, y);
-	glTexCoord2f (1, 0);
-	glVertex2f (x+x_value, y);
-	glTexCoord2f (1, 1);
-	glVertex2f (x+x_value, y+y_value);
-	glTexCoord2f (0, 1);
-	glVertex2f (x, y+y_value);
-	glEnd ();
 
-	glColor4f(1,1,1,1);
+    glBegin(GL_QUADS);
+
+    glTexCoord2f(u1, 0);
+    glVertex2f(x, y);
+
+    glTexCoord2f(u2, 0);
+    glVertex2f(x + x_value, y);
+
+    glTexCoord2f(u2, 1);
+    glVertex2f(x + x_value, y + y_value);
+
+    glTexCoord2f(u1, 1);
+    glVertex2f(x, y + y_value);
+
+    glEnd();
+
+    glDisable(GL_ALPHA_TEST);
 }
 
 /*
@@ -505,31 +566,78 @@ Draw_ColorPic
 */
 void Draw_ColorPic (int x, int y, int pic, float r, float g , float b, float a)
 {
-	if (pic < 0) return;
+	if (pic > 0) {
+		glDisable(GL_ALPHA_TEST);
+		glEnable(GL_BLEND);
+		glColor4f(r/255.0f,g/255.0f,b/255.0f,a/255.0f);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-	glDisable(GL_ALPHA_TEST);
-	glEnable(GL_BLEND);
-	glColor4f(r/255.0f,g/255.0f,b/255.0f,a/255.0f);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		gltexture_t *glt = &gltextures[pic];
+		GL_Bind (glt->texnum);
 
-	gltexture_t *glt = &gltextures[pic];
-	GL_Bind (pic);
+		glBegin (GL_QUADS);
+		glTexCoord2f (0, 0);
+		glVertex2f (x, y);
+		glTexCoord2f (1, 0);
+		glVertex2f (x+glt->width, y);
+		glTexCoord2f (1, 1);
+		glVertex2f (x+glt->width, y+glt->height);
+		glTexCoord2f (0, 1);
+		glVertex2f (x, y+glt->height);
+		glEnd ();
 
-	glBegin (GL_QUADS);
-	glTexCoord2f (0, 0);
-	glVertex2f (x, y);
-	glTexCoord2f (1, 0);
-	glVertex2f (x+glt->width, y);
-	glTexCoord2f (1, 1);
-	glVertex2f (x+glt->width, y+glt->height);
-	glTexCoord2f (0, 1);
-	glVertex2f (x, y+glt->height);
-	glEnd ();
+		glDisable(GL_BLEND);
+		glDisable(GL_ALPHA_TEST);
+		glColor4f(1,1,1,1);
+	}
+}
 
-	glDisable(GL_BLEND);
-	//glDisable(GL_ALPHA_TEST);
-	glColor4f(1,1,1,1);
+/*
+=============
+Draw_SubPic
+=============
+*/
+void Draw_SubPic (int x, int y, int pic, float s, float t, float s_coord_size, float t_coord_size, float scale, float r, float g , float b, float a)
+{
+	if (pic > 0) {
+		glDisable(GL_ALPHA_TEST);
+		glEnable(GL_BLEND);
+		glColor4f(r/255.0f,g/255.0f,b/255.0f,a/255.0f);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+		gltexture_t *glt = &gltextures[pic];
+		GL_Bind (glt->texnum);
+
+		float width_scale = scale * (s_coord_size / t_coord_size);
+
+		float u_scale = (float)glt->original_width / (float)glt->width;
+		float v_scale = (float)glt->original_height / (float)glt->height;
+
+		float u0 = s * u_scale;
+		float v0 = t * v_scale;
+		float u1 = (s + s_coord_size) * u_scale;
+		float v1 = (t + t_coord_size) * v_scale;
+
+		glBegin (GL_QUADS);
+		glTexCoord2f (u0, v0);
+		glVertex2f (x, y);
+		glTexCoord2f (u1, v0);
+		glVertex2f (x+(glt->original_width*width_scale), y);
+		glTexCoord2f (u1, v1);
+		glVertex2f (x+(glt->original_width*width_scale), y+(glt->original_height*scale));
+		glTexCoord2f (u0, v1);
+		glVertex2f (x, y+(glt->original_height*scale));
+		glEnd ();
+
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		glDisable(GL_BLEND);
+		glEnable(GL_ALPHA_TEST);
+		glColor4f(1.0f,1.0f,1.0f,1.0f);
+	}
 }
 
 /*
@@ -539,17 +647,17 @@ Draw_TransPic
 */
 void Draw_TransPic (int x, int y, int pic)
 {
-	if (pic < 0) return;
+	if (pic > 0) {
+		gltexture_t *glt = &gltextures[pic];
 
-	gltexture_t *glt = &gltextures[pic];
-
-	if (x < 0 || (unsigned)(x + glt->width) > vid.width || y < 0 ||
-		 (unsigned)(y + glt->height) > vid.height)
-	{
-		Sys_Error ("bad coordinates");
+		if (x < 0 || (unsigned)(x + glt->width) > vid.width || y < 0 ||
+			(unsigned)(y + glt->height) > vid.height)
+		{
+			Sys_Error ("bad coordinates");
+		}
+			
+		Draw_Pic (x, y, pic);
 	}
-		
-	Draw_Pic (x, y, pic);
 }
 
 /*
@@ -1009,15 +1117,13 @@ Image_FindImage
 // See if the texture is already present.
 int Image_FindImage (const char *identifier)
 {
-	int		i;
-	gltexture_t	*glt;
-
+	// See if the texture is already present.
 	if (identifier[0]) {
-		for (i=0; i<MAX_GLTEXTURES; i++) {
-				glt = &gltextures[i];
-				if (glt->used == true) {
-					if (!strcmp (identifier, glt->identifier)) {
-						return glt->texnum;
+		for (int i = 0; i < MAX_GLTEXTURES; ++i) {
+			if (gltextures[i].used == true) {
+				gltexture_t *glt = &gltextures[i];
+				if (!strcmp (identifier, glt->identifier)) {
+					return i;
 				}
 			}
 		}
@@ -1210,7 +1316,7 @@ int GL_LoadTexture (char *identifier, int width, int height, byte *data, qboolea
 	GLuint texID;
 	glGenTextures(1, &texID);     // Ask GL for a real texture object
 
-	strcpy(glt->identifier, identifier);
+	snprintf(glt->identifier, sizeof(glt->identifier), identifier);
 	glt->gl_id = texID;
 	glt->texnum = texture_index;
 	glt->width = width;

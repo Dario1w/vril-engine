@@ -27,11 +27,13 @@ void Draw_CharacterRGBA (int x, int y, int num, float r, float g, float b, float
 void Draw_DebugChar (char num);
 void Draw_Pic (int x, int y,  int texnum);
 void Draw_StretchPic (int x, int y,  int texnum, int x_value, int y_value);
+void Draw_MenuPanningPic (int x, int y, int pic, int x_value, int y_value, float time);
 void Draw_ColorPic (int x, int y, int texnum, float r, float g , float b, float a);
 void Draw_ColoredStretchPic (int x, int y,  int texnum, int x_value, int y_value, int r, int g, int b, int a);
 void Draw_ColoredString (int x, int y, char *text, float r, float g, float b, float a, float scale);
 void Draw_ColoredStringCentered(int y, char *text, float r, float g, float b, float a, float scale);
 void Draw_TransPic (int x, int y,  int texnum);
+void Draw_SubPic (int x, int y, int pic, float s, float t, float s_coord_size, float t_coord_size, float scale, float r, float g , float b, float a);
 void Draw_ConsoleBackground (int lines);
 void Draw_AlphaPic (int x, int y,  int texnum, float alpha);
 #ifdef __PSP__

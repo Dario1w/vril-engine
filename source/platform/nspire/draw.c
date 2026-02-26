@@ -27,7 +27,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PAL_STANDARD		0
 #define PAL_WHITETORED		1
 #define PAL_WHITETOYELLOW	2
-void Draw_AdvancedPic (int x, int y, int pic, unsigned char alpha, unsigned char palette_hack);
+void Draw_AdvancedPic (int x, int y, int pic, int alpha, unsigned char palette_hack);
+void Draw_AdvancedStretchPic (int x, int y, int pic, int width, int height);
+void Draw_AdvancedStretchPicColor (int x, int y, int pic, int width, int height, int alpha, unsigned char palette_hack);
 
 extern int numcachepics;
 
@@ -162,6 +164,7 @@ void InitKerningMap(void)
 	}
 
 	// naievil -- Cannot use fopen because it is in a pak
+	
     byte *data;
     data = COM_LoadTempFile("gfx/kerning_map.txt");
     if (!data) {
@@ -305,31 +308,22 @@ void Draw_Character (int x, int y, int num)
 
 /*
 ================
-Draw_CharacterRGBA
-
-This is the same as Draw_Character, but with RGBA color codes.
-- Cypress
-================
-*/
-
-/*
-================
 Draw_Character
 
-Draws one 8*8 graphics character with 0 being transparent.
+Draws one scaled graphics character with 0 being transparent.
 It can be clipped to the top of the screen to allow the console to be
 smoothly scrolled off.
 ================
 */
 
-void Draw_AdvancedCharacter(int x, int y, int num, int alpha, unsigned short color_hack) {
+void Draw_AdvancedCharacter(int x, int y, int num, int alpha, float scale, unsigned short color_hack) {
 	byte			*dest;
 	byte			*source;
-	unsigned short	*pusdest;
-	int				drawline;	
+	unsigned short	*pusdest;	
 	int				row, col;
 	int 			dither_factor;
 	int 			pixel_tracker;
+	int 			char_scale = (int)scale;
 
 	if (alpha < 16)
 		return;
@@ -346,7 +340,7 @@ void Draw_AdvancedCharacter(int x, int y, int num, int alpha, unsigned short col
 
 	num &= 255;
 	
-	if (y <= -8)
+	if (y <= -8 * char_scale)
 		return;			// totally off screen
 
 #ifdef PARANOID
@@ -360,21 +354,21 @@ void Draw_AdvancedCharacter(int x, int y, int num, int alpha, unsigned short col
 	col = num&15;
 	source = draw_chars + (row<<10) + (col<<3);
 
-	if (y < 0)
-	{	// clipped
-		drawline = 8 + y;
+	if (y < 0) {	// clipped
 		source -= 128*y;
 		y = 0;
 	}
-	else
-		drawline = 8;
-
 
 	if (r_pixbytes == 1)
 	{
 		dest = vid.conbuffer + y*vid.conrowbytes + x;
-	
-		while (drawline--)
+
+		// Computer the scale
+		int scaled_w = 8 * char_scale;
+		int scaled_h = 8 * char_scale;
+
+		// 
+		for (int dy = 0; dy < scaled_h; dy++)
 		{
 			pixel_tracker++;
 
@@ -385,27 +379,30 @@ void Draw_AdvancedCharacter(int x, int y, int num, int alpha, unsigned short col
 					continue;
 			}
 
-			// "Modern" (not 1996) GCC makes this almost as-fast
-			for(int i = 0; i < 8; i++) {
-				if (source[i]) {
+			int sy = dy / scale;
+			byte *src_row = source + sy * 128;
+			for (int dx = 0; dx < scaled_w; dx++)
+			{
+				int sx = dx / scale;
+				byte cur_char = src_row[sx];
+
+				// "Modern" (not 1996) GCC makes this almost as-fast
+				if (cur_char) {
 					switch(color_hack) {
 						case PAL_WHITETORED:
-							dest[i] = convert_white_to_red(source[i]); 
+							dest[dx] = convert_white_to_red(cur_char); 
 							break;
 						case PAL_WHITETOYELLOW:
-							dest[i] = convert_white_to_yellow(source[i]); 
+							dest[dx] = convert_white_to_yellow(cur_char); 
 							break;
 						default: 
-							dest[i] = source[i]; 
+							dest[dx] = cur_char; 
 							break;
 					}
-				}
-					
+				}	
 			}
-
-			source += 128;
 			dest += vid.conrowbytes;
-		}
+		}	
 	}
 	else
 	{
@@ -413,7 +410,11 @@ void Draw_AdvancedCharacter(int x, int y, int num, int alpha, unsigned short col
 		pusdest = (unsigned short *)
 				((byte *)vid.conbuffer + y*vid.conrowbytes + (x<<1));
 
-		while (drawline--)
+		// Computer the scale
+		int scaled_w = 8 * char_scale;
+		int scaled_h = 8 * char_scale;
+
+		for (int dy = 0; dy < scaled_h; dy++)
 		{
 			pixel_tracker++;
 
@@ -424,24 +425,28 @@ void Draw_AdvancedCharacter(int x, int y, int num, int alpha, unsigned short col
 					continue;
 			}
 
-			// "Modern" (not 1996) GCC makes this almost as-fast
-			for(int i = 0; i < 8; i++) {
-				if (source[i]) {
+			int sy = dy / scale;
+			byte *src_row = source + sy * 128;
+			for (int dx = 0; dx < scaled_w; dx++)
+			{
+				int sx = dx / scale;
+				byte cur_char = src_row[sx];
+
+				// "Modern" (not 1996) GCC makes this almost as-fast
+				if (cur_char) {
 					switch(color_hack) {
 						case PAL_WHITETORED:
-							pusdest[i] = d_8to16table[convert_white_to_red(source[i])];
+							pusdest[dx] = d_8to16table[convert_white_to_red(cur_char)]; 
 							break;
 						case PAL_WHITETOYELLOW:
-							pusdest[i] = d_8to16table[convert_white_to_yellow(source[i])];
+							pusdest[dx] = d_8to16table[convert_white_to_yellow(cur_char)]; 
 							break;
 						default: 
-							pusdest[i] = d_8to16table[source[i]]; 
+							pusdest[dx] = d_8to16table[cur_char]; 
 							break;
 					}
-				}		
+				}	
 			}
-
-			source += 128;
 			pusdest += (vid.conrowbytes >> 1);
 		}
 	}
@@ -504,12 +509,20 @@ unsigned char find_color_hack_from_rgb(byte r, byte g, byte b)
 	return color_hack;
 }
 
+/*
+================
+Draw_CharacterRGBA
+
+This is the same as Draw_Character, but with RGBA color codes.
+- Cypress
+================
+*/
 extern cvar_t scr_coloredtext;
 void Draw_CharacterRGBA(int x, int y, int num, float r, float g, float b, float a, float scale)
 {
 	unsigned char palette_hack = find_color_hack_from_rgb((byte) r, (byte) g, (byte) b);
 
-	Draw_AdvancedCharacter(x, y, num, 255, palette_hack);
+	Draw_AdvancedCharacter(x, y, num, 255, scale, palette_hack);
 }
 
 void Draw_ColoredString(int x, int y, char *str, float r, float g, float b, float a, float scale) 
@@ -518,7 +531,7 @@ void Draw_ColoredString(int x, int y, char *str, float r, float g, float b, floa
 
 	while (*str)
 	{
-		Draw_AdvancedCharacter (x, y, *str, 255, palette_hack);
+		Draw_AdvancedCharacter (x, y, *str, 255, scale, palette_hack);
 
 		// Hooray for variable-spacing!
 		if (*str == ' ')
@@ -635,8 +648,7 @@ Draw_StretchPic
 */
 void Draw_StretchPic (int x, int y, int pic, int x_value, int y_value)
 {
-	// naievil -- TODO: implement stretching?
-	Draw_Pic(x, y, pic);
+	Draw_AdvancedStretchPic(x, y, pic, x_value, y_value);
 }
 
 /*
@@ -648,8 +660,7 @@ void Draw_ColoredStretchPic (int x, int y, int pic, int x_value, int y_value, in
 {
 	unsigned char palette_hack = find_color_hack_from_rgb((byte) r, (byte) g, (byte) b);
 
-	// naievil -- TODO: implement stretching?
-	Draw_AdvancedPic(x, y, pic, a, palette_hack);
+	Draw_AdvancedStretchPicColor(x, y, pic, x_value, y_value, a, palette_hack);
 }
 
 /*
@@ -672,6 +683,16 @@ void Draw_ColorPic (int x, int y, int pic, float r, float g , float b, float a)
 	unsigned char palette_hack = find_color_hack_from_rgb((byte) r, (byte) g, (byte) b);
 
 	Draw_AdvancedPic(x, y, pic, 255, palette_hack);
+}
+
+void Draw_MenuPanningPic (int x, int y, int pic, int x_value, int y_value, float time)
+{
+	Draw_AdvancedStretchPic (x, y, pic, x_value, y_value);
+}
+
+void Draw_SubPic (int x, int y, int pic, float s, float t, float s_coord_size, float t_coord_size, float scale, float r, float g , float b, float a)
+{
+	//Draw_TransPic (x, y, pic);
 }
 
 /*
@@ -755,12 +776,261 @@ void Draw_TransPic (int x, int y, int pic)
 	}
 }
 
+void Draw_AdvancedStretchPic (int x, int y, int pic, int width, int height)
+{
+	byte			*dest, *source, tbyte;
+	unsigned short	*pusdest;
+	int				v, u;
+	int				pixel_tracker;
+	int				du, dv;
+	int				src_u, src_v;
+
+	if (pic < 0) return;
+	 
+	cachepic_t *tex = &cachepics[pic];
+
+	if (x < 0 || (unsigned)(x + width) > vid.width || y < 0 ||
+		 (unsigned)(y + height) > vid.height)
+	{
+		Sys_Error ("Draw_AdvancedStretchPic: bad coordinates");
+	}
+
+	pixel_tracker = 0;
+		
+	source = tex->data;
+
+	if (r_pixbytes == 1)
+	{
+		dest = vid.buffer + y * vid.rowbytes + x;
+
+		int u_step = (tex->width  << 16) / width;
+		int v_step = (tex->height << 16) / height;
+
+		int v_acc = 0;
+		for (dv = 0; dv < height; dv++)
+		{
+			src_v = v_acc >> 16;
+			if (src_v >= tex->height) {
+				src_v = tex->height - 1;
+			}
+			source = tex->data + src_v * tex->width;
+
+			int u_acc = 0;
+			for (du = 0; du < width; du++)
+			{
+				pixel_tracker++;
+
+				src_u = u_acc >> 16;
+				if (src_u >= tex->width) {
+					src_u = tex->width - 1;
+				}
+				tbyte = source[src_u];
+
+				if (tbyte != TRANSPARENT_COLOR) {
+					dest[du] = tbyte;
+				}
+
+				u_acc += u_step;
+			}
+
+			dest += vid.rowbytes;
+			v_acc += v_step;
+		}
+	}
+	else
+	{
+		// FIXME: pretranslate at load time?
+		pusdest = (unsigned short *)vid.buffer + y * (vid.rowbytes >> 1) + x;
+
+		int u_step = (tex->width  << 16) / width;
+		int v_step = (tex->height << 16) / height;
+
+		int v_acc = 0;
+		for (dv = 0; dv < height; dv++)
+		{
+			src_v = v_acc >> 16;
+			if (src_v >= tex->height) {
+				src_v = tex->height - 1;
+			}
+			source = tex->data + src_v * tex->width;
+
+			int u_acc = 0;
+			for (du = 0; du < width; du++)
+			{
+				pixel_tracker++;
+
+				src_u = u_acc >> 16;
+				if (src_u >= tex->width) {
+					src_u = tex->width - 1;
+				}
+        		tbyte = source[src_u];
+
+				if (tbyte != TRANSPARENT_COLOR) {
+					pusdest[du] = tbyte;
+				}
+
+				u_acc += u_step;
+			}
+
+			pusdest += vid.rowbytes >> 1;
+			v_acc += v_step;
+		}
+	}
+}
+
 /*
 =============
 Draw_AdvancedPic
 =============
 */
-void Draw_AdvancedPic (int x, int y, int pic, unsigned char alpha, unsigned char palette_hack)
+void Draw_AdvancedStretchPicColor (int x, int y, int pic, int width, int height, int alpha, unsigned char palette_hack)
+{
+	byte	*dest, *source, tbyte;
+	unsigned short	*pusdest;
+	int				v, u;
+	int				du, dv;
+	int				src_u, src_v;
+	int 			dither_factor;
+	int 			pixel_tracker;
+	 
+	cachepic_t *tex = &cachepics[pic];
+
+	if (x < 0 || (unsigned)(x + width) > vid.width || y < 0 ||
+		 (unsigned)(y + height) > vid.height)
+	{
+		Sys_Error ("Draw_AdvancedStretchPicColor: bad coordinates");
+	}
+
+	if (alpha < 16)
+		return;
+	if (alpha < 32)
+		dither_factor = 9;
+	else if (alpha < 64)
+		dither_factor = 6;
+	else if (alpha < 80)
+		dither_factor = 3;
+	else
+		dither_factor = 0;
+
+	pixel_tracker = 0;
+		
+	source = tex->data;
+
+	if (r_pixbytes == 1)
+	{
+		dest = vid.buffer + y * vid.rowbytes + x;
+
+		int u_step = (tex->width  << 16) / width;
+		int v_step = (tex->height << 16) / height;
+
+		int v_acc = 0;
+		for (dv = 0; dv < height; dv++)
+		{
+			src_v = v_acc >> 16;
+			if (src_v >= tex->height) {
+				src_v = tex->height - 1;
+			}
+			source = tex->data + src_v * tex->width;
+
+			int u_acc = 0;
+			for (du = 0; du < width; du++)
+			{
+				pixel_tracker++;
+
+				// guard it to avoid spamming moduli
+				if (dither_factor != 0) {
+					// motolegacy -- this actually doesnt work as originally intended but it looks fucking awesome so im keeping it
+					if (pixel_tracker % dither_factor != 0)
+						continue;
+				}
+
+				src_u = u_acc >> 16;
+				if (src_u >= tex->width) {
+					src_u = tex->width - 1;
+				}
+
+				if ( (tbyte=source[src_u]) != TRANSPARENT_COLOR) {
+					switch(palette_hack) {
+						case PAL_WHITETORED:
+							dest[du] = convert_white_to_red(tbyte); 
+							break;
+						case PAL_WHITETOYELLOW:
+							dest[du] = convert_white_to_yellow(tbyte); 
+							break;
+						default: 
+							dest[du] = tbyte;
+							break;
+					}
+				}
+				u_acc += u_step;
+			}
+			dest += vid.rowbytes;
+			v_acc += v_step;
+		}
+	}
+	else
+	{
+		// FIXME: pretranslate at load time?
+		pusdest = (unsigned short *)vid.buffer + y * (vid.rowbytes >> 1) + x;
+
+		int u_step = (tex->width  << 16) / width;
+		int v_step = (tex->height << 16) / height;
+
+		int v_acc = 0;
+		for (dv = 0; dv < height; dv++)
+		{
+			src_v = v_acc >> 16;
+			if (src_v >= tex->height) {
+				src_v = tex->height - 1;
+			}
+			source = tex->data + src_v * tex->width;
+
+			int u_acc = 0;
+			for (du = 0; du < width; du++)
+			{
+				pixel_tracker++;
+
+				// guard it to avoid spamming moduli
+				if (dither_factor != 0) {
+					// motolegacy -- this actually doesnt work as originally intended but it looks fucking awesome so im keeping it
+					if (pixel_tracker % dither_factor != 0)
+						continue;
+				}
+
+				src_u = u_acc >> 16;
+				if (src_u >= tex->width) {
+					src_u = tex->width - 1;
+				}
+        		tbyte = source[src_u];
+
+				if (tbyte != TRANSPARENT_COLOR)
+				{
+					switch(palette_hack) {
+						case PAL_WHITETORED:
+							pusdest[du] = d_8to16table[convert_white_to_red(tbyte)]; 
+							break;
+						case PAL_WHITETOYELLOW:
+							pusdest[du] = d_8to16table[convert_white_to_yellow(tbyte)]; 
+							break;
+						default: 
+							pusdest[du] = d_8to16table[tbyte];
+							break;
+					}
+				}
+				u_acc += u_step;
+			}
+			pusdest += vid.rowbytes >> 1;
+			v_acc += v_step;
+		}
+	}
+}
+
+/*
+=============
+Draw_AdvancedPic
+=============
+*/
+void Draw_AdvancedPic (int x, int y, int pic, int alpha, unsigned char palette_hack)
 {
 	byte	*dest, *source, tbyte;
 	unsigned short	*pusdest;
@@ -782,7 +1052,7 @@ void Draw_AdvancedPic (int x, int y, int pic, unsigned char alpha, unsigned char
 		dither_factor = 9;
 	else if (alpha < 64)
 		dither_factor = 6;
-	else if (alpha < 128)
+	else if (alpha < 80)
 		dither_factor = 3;
 	else
 		dither_factor = 0;
@@ -918,6 +1188,8 @@ Draw_TransPicTranslate
 */
 void Draw_TransPicTranslate (int x, int y, int pic, byte *translation)
 {
+	return;
+
 	byte	*dest, *source, tbyte;
 	unsigned short	*pusdest;
 	int				v, u;
@@ -1032,7 +1304,7 @@ Draw_BlackBackground
 */
 void Draw_BlackBackground (void)
 {
-	Draw_Fill(0, 0, vid.width, vid.height, 0);
+	Draw_Fill(0, 0, vid.width, vid.height, 0, 0, 0, 255, 0);
 }
 
 
@@ -1262,10 +1534,12 @@ unsigned char convert_24_to_8(const unsigned char palette[768], const int rgb[3]
 byte findclosestpalmatch(byte r, byte g, byte b, byte a)
 {
 	// naievil -- force alpha
-	if (a == 0 || a < 128) {
+	/*
+	if (a == 0 || a < 120) {
 		return 255;
 	}
-
+	*/
+	
 	int rgb[3];
 	rgb[0] = r;
 	rgb[1] = g; 
@@ -1274,6 +1548,13 @@ byte findclosestpalmatch(byte r, byte g, byte b, byte a)
 	return (byte)convert_24_to_8(host_basepal, rgb);
 }
 
+int set_dither_factor(int alpha)
+{
+	if (alpha > 120) return 0;
+
+	float t = 1.0f - (alpha / 255.0f);
+    return (int)(15.0f * t * t);
+}
 
 /*
 =============
@@ -1282,19 +1563,81 @@ Draw_Fill
 Fills a box of pixels with a single color
 =============
 */
-void Draw_Fill (int x, int y, int w, int h, int c)
+void Draw_Fill (int x, int y, int w, int h, int r, int g, int b, int alpha, int c)
 {
 	byte			*dest;
 	unsigned short	*pusdest;
 	unsigned		uc;
 	int				u, v;
+	int 			dither_factor;
+	int 			pixel_tracker;
+
+	unsigned char palette_hack = find_color_hack_from_rgb((byte) r, (byte) g, (byte) b);
+
+	if (alpha < 16)
+		return;
+	
+	dither_factor = set_dither_factor(alpha);
+
+	pixel_tracker = 0;
 
 	if (r_pixbytes == 1)
 	{
 		dest = vid.buffer + y*vid.rowbytes + x;
-		for (v=0 ; v<h ; v++, dest += vid.rowbytes)
-			for (u=0 ; u<w ; u++)
-				dest[u] = c;
+		for (v=0 ; v<h ; v++, dest += vid.rowbytes) {
+			
+			if (w > 0) {
+				for (u=0 ; u<w ; u++) {
+					pixel_tracker++;
+					// guard it to avoid spamming moduli
+					if (dither_factor != 0) {
+						// motolegacy -- this actually doesnt work as originally intended but it looks fucking awesome so im keeping it
+						if (pixel_tracker % dither_factor != 0)
+							continue;
+					}
+
+					if(c != TRANSPARENT_COLOR) {
+						switch(palette_hack) {
+							case PAL_WHITETORED:
+								dest[u] = convert_white_to_red(c); 
+								break;
+							case PAL_WHITETOYELLOW:
+								dest[u] = convert_white_to_yellow(c); 
+								break;
+							default: 
+								dest[u] = c;
+								break;
+						}
+					}
+				}
+			} else {
+				// negative x drawing
+				for (u=0 ; u>w ; u--) {
+					pixel_tracker++;
+
+					// guard it to avoid spamming moduli
+					if (dither_factor != 0) {
+						// motolegacy -- this actually doesnt work as originally intended but it looks fucking awesome so im keeping it
+						if (pixel_tracker % dither_factor != 0)
+							continue;
+					}
+
+					if(c != TRANSPARENT_COLOR) {
+						switch(palette_hack) {
+							case PAL_WHITETORED:
+								dest[u] = convert_white_to_red(c); 
+								break;
+							case PAL_WHITETOYELLOW:
+								dest[u] = convert_white_to_yellow(c); 
+								break;
+							default: 
+								dest[u] = c;
+								break;
+						}
+					}
+				}
+			}
+		}		
 	}
 	else
 	{
@@ -1313,7 +1656,7 @@ void Draw_FillByColor (int x, int y, int w, int h, int r, int g, int b, int a)
 	int c = (int)findclosestpalmatch(r, g, b, a);
 
 	// naievil -- TODO: implement this
-	Draw_Fill(x, y, w, h, c);
+	Draw_Fill(x, y, w, h, r, g, b, a, c);
 }
 
 /*

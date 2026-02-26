@@ -527,6 +527,8 @@ Draw_ColorPic
 */
 void Draw_ColorPic (int x, int y, int pic, float r, float g , float b, float a)
 {
+	if (pic < 1) return;
+
 	sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
 
 	const gltexture_t &glt = gltextures[pic];
@@ -596,6 +598,8 @@ Draw_StretchPic
 */
 void Draw_StretchPic (int x, int y, int pic, int x_value, int y_value)
 {
+	if (pic < 1) return;
+
 	const gltexture_t &glt = gltextures[pic];
 	GL_Bind (glt.texnum);
 
@@ -631,6 +635,8 @@ Draw_ColoredStretchPic
 */
 void Draw_ColoredStretchPic (int x, int y, int pic, int x_value, int y_value, int r, int g, int b, int a)
 {
+	if (pic < 1) return;
+
 	sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
 
 	const gltexture_t &glt = gltextures[pic];
@@ -671,11 +677,133 @@ void Draw_ColoredStretchPic (int x, int y, int pic, int x_value, int y_value, in
 
 /*
 =============
+Draw_MenuPanningPic
+=============
+*/
+void Draw_MenuPanningPic (int x, int y, int pic, int x_value, int y_value, float time)
+{
+	if (pic < 1) return;
+
+	sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+
+	const gltexture_t &glt = gltextures[pic];
+    GL_Bind(glt.texnum);
+
+    struct vertex
+    {
+        float u, v;
+        short x, y, z;
+    };
+
+    vertex* const vertices =
+        static_cast<vertex*>(sceGuGetMemory(sizeof(vertex) * 2));
+
+	// 5% horizonstal crop
+	const float zoom = glt.width * 0.05f;
+    const float visible = glt.width - (zoom * 2.0f);
+
+    // Pan amount (0 -> 1 over time)
+    float duration = 7.0f;
+	float t = time / duration;
+	if (t > 1.0f) t = 1.0f;
+
+	float offset = t * (zoom * 2.0f);
+
+    float u1 = offset;
+    float u2 = u1 + visible;
+	float v1 = 0;
+    float v2 = glt.height;
+
+    vertices[0].u = u1;
+    vertices[0].v = v1;
+    vertices[0].x = x;
+    vertices[0].y = y;
+    vertices[0].z = 0;
+
+    vertices[1].u = u2;
+    vertices[1].v = v2;
+    vertices[1].x = x + x_value;
+    vertices[1].y = y + y_value;
+    vertices[1].z = 0;
+
+	sceGuTexFilter(GU_LINEAR, GU_LINEAR);
+
+    sceGuDrawArray(
+        GU_SPRITES,
+        GU_TEXTURE_32BITF | GU_VERTEX_16BIT | GU_TRANSFORM_2D,
+        2,
+        0,
+        vertices
+    );
+
+	sceGuColor(GU_COLOR(1,1,1,1));
+	sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGBA);
+
+	sceGuTexFilter(GU_NEAREST, GU_NEAREST);
+}
+
+/*
+=============
+Draw_SubPic
+=============
+*/
+void Draw_SubPic (int x, int y, int pic, float s, float t, float s_coord_size, float t_coord_size, float scale, float r, float g , float b, float a)
+{
+	if (pic < 1) return;
+
+	sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+
+	const gltexture_t &glt = gltextures[pic];
+	GL_Bind (glt.texnum);
+
+	struct vertex
+	{
+		unsigned short	u, v;
+		short			x, y, z;
+	};
+
+	float width_scale = scale * (s_coord_size / t_coord_size);
+
+	vertex* const vertices = static_cast<vertex*>(sceGuGetMemory(sizeof(vertex) * 2));
+
+	vertices[0].u = (s * glt.width);
+	vertices[0].v = (t * glt.height);
+
+	vertices[0].x = x;
+	vertices[0].y = y;
+	vertices[0].z = 0;
+
+	vertices[1].u = ((s + s_coord_size) * glt.width);
+	vertices[1].v = ((t + t_coord_size) * glt.height);
+
+	vertices[1].x = x + (glt.original_width * width_scale);
+	vertices[1].y = y + (glt.original_height * scale);
+	vertices[1].z = 0;
+
+	sceGuColor(GU_RGBA(
+		static_cast<unsigned int>(r),
+		static_cast<unsigned int>(g),
+		static_cast<unsigned int>(b),
+		static_cast<unsigned int>(a)));
+
+	sceGuDrawArray(
+		GU_SPRITES,
+		GU_TEXTURE_16BIT | GU_VERTEX_16BIT | GU_TRANSFORM_2D,
+		2, 0, vertices);
+
+    sceGuColor(0xffffffff);
+	sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGBA);
+}
+
+/*
+=============
 Draw_TransPic
 =============
 */
 void Draw_TransPic (int x, int y, int pic)
 {
+	if (pic < 1) return;
+
 	gltexture_t &texture = gltextures[pic];
 
 	if (x < 0 || (unsigned)(x + texture.width) > vid.width || y < 0 ||
@@ -701,9 +829,6 @@ void Draw_ConsoleBackground (int lines)
 		Draw_Fill(0, 0, vid.width, lines, 0);
 	else
 		Draw_Fill(0, 0, vid.width, lines, 0);
-
-
-
 }
 /*
 ================
@@ -717,6 +842,10 @@ void Draw_LoadingFill(void)
 		return;
 
 	if (developer.value) {
+		return;
+	}
+
+	if (loading_init == true) {
 		return;
 	}
 

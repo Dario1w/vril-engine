@@ -60,7 +60,8 @@ namespace quake
 }
 
 // Quake globals.
-extern "C" int bind_grab;
+// INPUT TODO
+int bind_grab = 0;
 
 using namespace quake;
 using namespace quake::input;
@@ -323,7 +324,7 @@ void IN_Move (usercmd_t *cmd)
 	cl.viewangles[YAW] -= yawScale * look_x * (float)host_frametime;
 
 	// Set the pitch.
-	const bool invertPitch = m_pitch.value < 0;
+	const bool invertPitch = m_pitch.value > 0;
 	const float pitchScale = yawScale * (invertPitch ? 1 : -1);
 
 	cl.viewangles[PITCH] += pitchScale * look_y * (float)host_frametime;

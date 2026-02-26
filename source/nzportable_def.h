@@ -291,7 +291,7 @@ typedef struct
 #include "console.h"
 #include "view.h"
 
-#include PLATFORM_FILE(menu.h)
+#include "menu/menu_globaldefs.h"
 
 #include "crc.h"
 #include "cdaudio.h"
