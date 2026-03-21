@@ -126,10 +126,6 @@ void VID_ShiftPalette(unsigned char *p)
 //	VID_SetPalette(p);
 }
 
-void VID_ChangeRes(float scale){
-	
-}
-
 void	VID_SetPalette (unsigned char *palette)
 {
 	byte	*pal;
@@ -680,6 +676,7 @@ void VID_Init(unsigned char *palette)
 	vid.rowbytes = 2 * width;
 	vid.width = width * gl_ssaa;
 	vid.height = height * gl_ssaa;
+	vid.scale = vid.height/STD_UI_HEIGHT;
 
 	vid.conwidth = 480;
 	vid.conheight = 272;
