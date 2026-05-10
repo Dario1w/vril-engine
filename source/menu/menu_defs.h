@@ -90,9 +90,6 @@ extern menuframe_t 		current_frame;
 
 #define UI_FLIPTEXTPOS							1
 
-#define	CHAR_WIDTH								8
-#define	CHAR_HEIGHT								8
-
 extern qboolean	        m_recursiveDraw;
 
 // set true if user is currently
@@ -174,6 +171,11 @@ extern qboolean		    menu_is_solo;
 // in multiple calculations
 extern int 			    big_bar_height;
 extern int 			    small_bar_height;
+
+// Width and height of a character
+// set by platform scale
+#define	_CHAR_WIDTH 		8
+#define	_CHAR_HEIGHT 		8
 
 // Menu specific key abstractions
 extern int				MENU_KEY_CONFIRM;

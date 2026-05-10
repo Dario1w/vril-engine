@@ -9,7 +9,7 @@ LIBS = -lvitaGL -lvitashark -lSceShaccCgExt -ltaihen_stub -lvorbisfile -lvorbis 
 	-lSceNet_stub -lSceNetCtl_stub -lpng -lSceDisplay_stub -lSceGxm_stub \
 	-Wl,--whole-archive -lSceSysmodule_stub -Wl,--no-whole-archive \
 	-lSceCtrl_stub -lSceTouch_stub -lSceMotion_stub -lm -lSceAppMgr_stub \
-	-lSceAppUtil_stub -lScePgf_stub -ljpeg -lSceRtc_stub -lScePower_stub -lcurl -lssl -lcrypto -lz
+	-lSceAppUtil_stub -lScePgf_stub -ljpeg -lSceRtc_stub -lScePower_stub -lcurl -lssl -lcrypto -lz -lzstd
 
 COMMON_OBJS =	\
 	source/system.o \
@@ -87,10 +87,10 @@ COMMON_OBJS =	\
 	source/platform/psp2/vgl/vgl_warp.o \
 	source/platform/psp2/vgl/vgl_fullbright.o \
 	source/platform/psp2/r_part.o \
-	source/platform/psp2/audiodec/cd_psp2.o \
+	source/platform/psp2/music.o \
+	source/snd_music.o \
 	source/platform/psp2/audiodec/audio_decoder.o \
 	source/platform/psp2/audiodec/audio_resampler.o \
-	source/platform/psp2/audiodec/decoder_mpg123.o \
 	source/platform/psp2/audiodec/decoder_oggvorbis.o \
 	source/snd_dma.o \
 	source/snd_mix.o \
@@ -102,7 +102,6 @@ COMMON_OBJS =	\
 	source/platform/psp2/in_psp2.o \
 	source/platform/psp2/vgl/vgl_vidpsp2.o \
 	source/platform/psp2/neon_mathfun.o \
-	source/platform/psp2/webdownload.o \
 	source/crypter.o
 	
 CPPSOURCES	:= source/audiodec

@@ -37,6 +37,21 @@ jobs:
           git checkout revamp
           mkdir clean
           make install
+      - name: Build and install mpg123
+        run: |
+          curl -LO https://downloads.sourceforge.net/project/mpg123/mpg123/1.32.3/mpg123-1.32.3.tar.bz2
+          tar xf mpg123-1.32.3.tar.bz2
+          cd mpg123-1.32.3
+          ./configure --host=arm-none-eabi \
+            --prefix=$DEVKITPRO/portlibs/3ds \
+            --disable-shared \
+            --enable-static \
+            --with-cpu=generic_fpu \
+            CC=$DEVKITARM/bin/arm-none-eabi-gcc \
+            CFLAGS="-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft -D_3DS"
+          make -k || true
+          make -k install || true
+          cp src/libmpg123/mpg123.h $DEVKITPRO/portlibs/3ds/include/
       - name: Build
         working-directory: ./
         run: |
@@ -68,28 +83,35 @@ jobs:
   Compile-VPK:
     if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
-    container:
-      image: gnuton/vitasdk-docker:20251220
     steps:
-      - uses: actions/checkout@v2
-      - name: Install Packages and update VitaSDK
+      - uses: actions/checkout@v4
+      - name: Install Packages
         run: |
-          apt update && apt install -y build-essential
+          sudo apt-get update 
+          sudo apt-get install -y build-essential curl git-core cmake python3
+      - name: Setup latest VitaSDK
+        run: |
+          git clone https://github.com/vitasdk/vdpm
+          cd vdpm
+          export VITASDK=$HOME/vitasdk
+          export PATH=$VITASDK/bin:$PATH
+          ./bootstrap-vitasdk.sh
+          ./install-all.sh
+          echo "VITASDK=$HOME/vitasdk" >> $GITHUB_ENV
+          echo "$HOME/vitasdk/bin" >> $GITHUB_PATH
       # Clone and rebuilt vitaGL with neccessary flags
       # Clone the commit we want to use
       # in this case it's the latest as of this commit
       - name: Clone vitaGL
         run: |
           git clone https://github.com/Rinnegatamante/vitaGL.git
-          cd vitaGL
-          git checkout fcace3ba28e8d6b00f705660450a4a61df1f329c
       # Inject flag
-      - name: Inject flag into vitaGL Makefile
+      - name: Inject flags into vitaGL Makefile
         run: |
           cd vitaGL
-          sed -i 's/^CFLAGS[[:space:]]*= /&-DHAVE_FFP_SHADER_SUPPORT=1 /' Makefile
+          sed -i 's/^CFLAGS[[:space:]]*= /&-DENABLE_LEGACY_PIPELINE=1 -DHAVE_FFP_SHADER_SUPPORT=1 -DSKIP_SPLASHSCREEN=1 /' Makefile
       # Build vitaGL
-      - name: Build vitaGL with HAVE_FFP_SHADER_SUPPORT=1
+      - name: Build vitaGL with required flags
         run: |
           cd vitaGL
           make clean

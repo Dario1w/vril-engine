@@ -695,6 +695,8 @@ void _Host_Frame (float time)
 	else
 		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 
+	Music_Update();
+
 	if (host_speeds.value)
 	{
 		pass1 = (time1 - time3)*1000;
@@ -902,7 +904,7 @@ void Host_Init (quakeparms_t *parms)
 		// and after HUD_Init to get button pics
 		Menu_Init ();
 		S_Init ();
-		CDAudio_Init ();
+		Music_Init ();
 		CL_Init ();
 		IN_Init ();
 	}
@@ -948,7 +950,7 @@ void Host_Shutdown(void)
 
 	Host_WriteConfiguration ();
 
-	CDAudio_Shutdown ();
+	Music_Shutdown ();
 	NET_Shutdown ();
 	S_Shutdown();
 	IN_Shutdown ();
