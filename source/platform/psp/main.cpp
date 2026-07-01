@@ -498,10 +498,6 @@ void InitExtModules (void)
 	memset(currentDirectory, 0, sizeof(currentDirectory));
 	getcwd(currentDirectory, sizeof(currentDirectory) - 1);
 
-	char launchDirectory[1024];
-	memset(launchDirectory, 0, sizeof(launchDirectory));
-	CopyParentDirectory(launchDirectory, sizeof(launchDirectory), (const char*)argp);
-
 	strcpy(path_f,currentDirectory);
 	strcat(path_f,"/hooks/vramext.prx");
 	sprintf(mod_names[1], path_f);
@@ -573,6 +569,10 @@ int user_main(SceSize argc, void* argp)
 	memset(gameDirectory, 0, sizeof(gameDirectory));
 	memset(currentDirectory, 0, sizeof(currentDirectory));
 	getcwd(currentDirectory, sizeof(currentDirectory) - 1);
+
+	char launchDirectory[1024];
+	memset(launchDirectory, 0, sizeof(launchDirectory));
+	CopyParentDirectory(launchDirectory, sizeof(launchDirectory), (const char*)argp);
 
 	char   path_f[256];
 	strcpy(path_f,currentDirectory);
