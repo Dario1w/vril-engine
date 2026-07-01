@@ -572,7 +572,12 @@ int user_main(SceSize argc, void* argp)
 
 	char launchDirectory[1024];
 	memset(launchDirectory, 0, sizeof(launchDirectory));
+#ifdef KERNEL_MODE
 	CopyParentDirectory(launchDirectory, sizeof(launchDirectory), (const char*)argp);
+#else
+	if (argc > 0 && argv && argv[0])
+		CopyParentDirectory(launchDirectory, sizeof(launchDirectory), argv[0]);
+#endif
 
 	char   path_f[256];
 	strcpy(path_f,currentDirectory);
